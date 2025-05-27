@@ -2,10 +2,10 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_CREDENTIALS = credentials('docker-hub-creds')       // DockerHub
-        GIT_CREDENTIALS     = credentials('git-creds')              // Git
-        SONARQUBE_SERVER    = 'SonarQubeServer'                     // Jenkins config name
-        IMAGE_REPO          = 'yourdockerhubuser/yourapp'
+        DOCKER_CREDENTIALS = credentials('docker-hub-creds')  // Docker Hub credentials
+        GIT_CREDENTIALS    = credentials('git-creds')         // Git credentials
+        SONARQUBE_SERVER   = 'SonarQubeServer'                 // Jenkins SonarQube server config name
+        IMAGE_REPO         = 'yourdockerhubuser/yourapp'       // Docker image repo
     }
 
     stages {
@@ -23,7 +23,7 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv("${env.SONARQUBE_SERVER}") {
+                withSonarQubeEnv(SONARQUBE_SERVER) {
                     sh 'mvn sonar:sonar'
                 }
             }
@@ -32,9 +32,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    IMAGE_TAG = "${env.BUILD_NUMBER}" 
-//env.BUILD_NUMBER is built env variable
-                    sh "docker build -t $IMAGE_REPO:$IMAGE_TAG ."
+                    env.IMAGE_TAG = env.BUILD_NUMBER
+                    sh "docker build -t ${IMAGE_REPO}:${IMAGE_TAG} ."
                 }
             }
         }
@@ -42,7 +41,7 @@ pipeline {
         stage('Trivy Scan') {
             steps {
                 sh """
-                trivy image --exit-code 0 --severity HIGH,CRITICAL $IMAGE_REPO:$IMAGE_TAG || true
+                   trivy image --exit-code 0 --severity HIGH,CRITICAL ${IMAGE_REPO}:${IMAGE_TAG} || true
                 """
             }
         }
@@ -51,7 +50,7 @@ pipeline {
             steps {
                 script {
                     docker.withRegistry('', 'docker-hub-creds') {
-                        sh "docker push $IMAGE_REPO:$IMAGE_TAG"
+                        sh "docker push ${IMAGE_REPO}:${IMAGE_TAG}"
                     }
                 }
             }
@@ -60,20 +59,24 @@ pipeline {
         stage('Update Helm Values') {
             steps {
                 script {
-                    def yamlFile = ""
+                    def yamlFile = ''
 
-                    if (env.BRANCH_NAME == "dev") {
-                        yamlFile = "values/dev.yaml"
-                    } else if (env.BRANCH_NAME == "test") {
-                        yamlFile = "values/test.yaml"
-                    } else if (env.BRANCH_NAME == "release") {
-                        yamlFile = "values/prod.yaml"
-                    } else {
-                        error "Unsupported branch: ${env.BRANCH_NAME}"
+                    switch(env.BRANCH_NAME) {
+                        case 'dev':
+                            yamlFile = 'values/dev.yaml'
+                            break
+                        case 'test':
+                            yamlFile = 'values/test.yaml'
+                            break
+                        case 'release':
+                            yamlFile = 'values/prod.yaml'
+                            break
+                        default:
+                            error "Unsupported branch: ${env.BRANCH_NAME}"
                     }
-//env.BRANCH_NAME is built env variable
+
                     sh """
-                        sed -i 's|tag: .*|tag: "$IMAGE_TAG"|' $yamlFile
+                       sed -i 's|tag: .*|tag: "${IMAGE_TAG}"|' ${yamlFile}
                     """
                 }
             }
@@ -83,11 +86,11 @@ pipeline {
             steps {
                 script {
                     sh """
-                        git config user.name "Jenkins"
-                        git config user.email "jenkins@ci"
-                        git add values/*.yaml
-                        git commit -m "Update image tag to $IMAGE_TAG for ${env.BRANCH_NAME}"
-                        git push https://${GIT_CREDENTIALS_USR}:${GIT_CREDENTIALS_PSW}@github.com/your-org/your-repo.git HEAD:${env.BRANCH_NAME}
+                       git config user.name "Jenkins"
+                       git config user.email "jenkins@ci"
+                       git add values/*.yaml
+                       git commit -m "Update image tag to ${IMAGE_TAG} for ${env.BRANCH_NAME}"
+                       git push https://${GIT_CREDENTIALS_USR}:${GIT_CREDENTIALS_PSW}@github.com/your-org/your-repo.git HEAD:${env.BRANCH_NAME}
                     """
                 }
             }
