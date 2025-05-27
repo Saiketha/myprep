@@ -1,0 +1,86 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_REGION = 'us-east-1'
+        BRANCH_NAME = "${env.BRANCH_NAME ?: 'dev'}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Set AWS Credentials') {
+            steps {
+                script {
+                    switch (BRANCH_NAME) {
+                        case 'dev':
+                            env.AWS_CREDS_ID = 'aws-dev-creds'
+                            break
+                        case 'test':
+                            env.AWS_CREDS_ID = 'aws-test-creds'
+                            break
+                        case 'prod':
+                            env.AWS_CREDS_ID = 'aws-prod-creds'
+                            break
+                        default:
+                            error "Unsupported branch: ${BRANCH_NAME}"
+                    }
+                    echo "Using AWS credentials: ${env.AWS_CREDS_ID} for branch ${BRANCH_NAME}"
+                }
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: env.AWS_CREDS_ID, usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    sh """
+                        export AWS_DEFAULT_REGION=${AWS_REGION}
+                        terraform init
+                        terraform workspace select ${BRANCH_NAME} || terraform workspace new ${BRANCH_NAME}
+                    """
+                }
+            }
+        }
+
+        stage('Terraform Validate') {
+            steps {
+                sh 'terraform validate'
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: env.AWS_CREDS_ID, usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    sh """
+                        export AWS_DEFAULT_REGION=${AWS_REGION}
+                        terraform plan -out=tfplan
+                    """
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: env.AWS_CREDS_ID, usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    sh """
+                        export AWS_DEFAULT_REGION=${AWS_REGION}
+                        terraform apply -auto-approve tfplan
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        failure {
+            echo "Terraform failed for ${BRANCH_NAME} environment!"
+        }
+        success {
+            echo "Terraform applied successfully to ${BRANCH_NAME} environment!"
+        }
+    }
+}
