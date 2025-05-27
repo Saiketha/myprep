@@ -32,7 +32,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    IMAGE_TAG = "${env.BUILD_NUMBER}"
+                    IMAGE_TAG = "${env.BUILD_NUMBER}" 
+//env.BUILD_NUMBER is built env variable
                     sh "docker build -t $IMAGE_REPO:$IMAGE_TAG ."
                 }
             }
@@ -70,7 +71,7 @@ pipeline {
                     } else {
                         error "Unsupported branch: ${env.BRANCH_NAME}"
                     }
-
+//env.BRANCH_NAME is built env variable
                     sh """
                         sed -i 's|tag: .*|tag: "$IMAGE_TAG"|' $yamlFile
                     """
