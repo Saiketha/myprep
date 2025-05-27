@@ -2,11 +2,11 @@ pipeline {
     agent any
 
     environment {
-        AWS_REGION        = 'us-east-1'
-        ECR_REPO          = '123456789012.dkr.ecr.us-east-1.amazonaws.com/my-app'
-        GIT_CREDENTIALS   = credentials('git-creds')
-        SONARQUBE_SERVER  = 'SonarQubeServer'
-        AWS_CREDS         = credentials('aws-access-secret') // Jenkins credentials ID
+        AWS_REGION       = 'us-east-1'
+        ECR_REPO         = '123456789012.dkr.ecr.us-east-1.amazonaws.com/my-app'
+        GIT_CREDENTIALS  = credentials('git-creds')
+        SONARQUBE_SERVER = 'SonarQubeServer'
+        AWS_CREDS        = credentials('aws-access-secret')
     }
 
     stages {
@@ -24,7 +24,7 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv("${SONARQUBE_SERVER}") {
+                withSonarQubeEnv(SONARQUBE_SERVER) {
                     sh 'mvn sonar:sonar'
                 }
             }
@@ -36,7 +36,10 @@ pipeline {
                     "AWS_ACCESS_KEY_ID=${AWS_CREDS_USR}",
                     "AWS_SECRET_ACCESS_KEY=${AWS_CREDS_PSW}"
                 ]) {
-                    sh "aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO"
+                    sh """
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${ECR_REPO}
+                    """
                 }
             }
         }
@@ -44,56 +47,60 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    IMAGE_TAG = "${env.BUILD_NUMBER}"
-                    sh "docker build -t $ECR_REPO:$IMAGE_TAG ."
+                    env.IMAGE_TAG = "${env.BUILD_NUMBER}"
+                    sh "docker build -t ${ECR_REPO}:${IMAGE_TAG} ."
                 }
             }
         }
 
         stage('Trivy Scan') {
             steps {
-                sh "trivy image --exit-code 0 --severity HIGH,CRITICAL $ECR_REPO:$IMAGE_TAG || true"
+                sh "trivy image --exit-code 0 --severity HIGH,CRITICAL ${ECR_REPO}:${IMAGE_TAG} || true"
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                sh "docker push $ECR_REPO:$IMAGE_TAG"
+                sh "docker push ${ECR_REPO}:${IMAGE_TAG}"
             }
         }
 
         stage('Deploy to EKS') {
             steps {
                 script {
-                    def clusterName = ""
-                    def namespace = ""
+                    def clusterName
+                    def namespace
 
-                    if (env.BRANCH_NAME == "dev") {
-                        clusterName = "eks-dev"
-                        namespace = "dev"
-                    } else if (env.BRANCH_NAME == "test") {
-                        clusterName = "eks-test"
-                        namespace = "test"
-                    } else if (env.BRANCH_NAME == "prod") {
-                        clusterName = "eks-prod"
-                        namespace = "prod"
-                    } else {
-                        error "Unsupported branch: ${env.BRANCH_NAME}"
+                    switch (env.BRANCH_NAME) {
+                        case 'dev':
+                            clusterName = 'eks-dev'
+                            namespace = 'dev'
+                            break
+                        case 'test':
+                            clusterName = 'eks-test'
+                            namespace = 'test'
+                            break
+                        case 'prod':
+                            clusterName = 'eks-prod'
+                            namespace = 'prod'
+                            break
+                        default:
+                            error "Unsupported branch: ${env.BRANCH_NAME}"
                     }
 
                     withEnv([
                         "AWS_ACCESS_KEY_ID=${AWS_CREDS_USR}",
                         "AWS_SECRET_ACCESS_KEY=${AWS_CREDS_PSW}"
                     ]) {
-                        sh "aws eks update-kubeconfig --region $AWS_REGION --name $clusterName"
+                        sh "aws eks update-kubeconfig --region ${AWS_REGION} --name ${clusterName}"
 
                         def deployment = "my-app-deployment"
-                        def container  = "my-app-container"
+                        def container = "my-app-container"
 
                         sh """
-                            kubectl set image deployment/$deployment $container=$ECR_REPO:$IMAGE_TAG --namespace=$namespace --record
-                            kubectl rollout restart deployment/$deployment --namespace=$namespace
-                            kubectl rollout status deployment/$deployment --namespace=$namespace
+                            kubectl set image deployment/${deployment} ${container}=${ECR_REPO}:${IMAGE_TAG} --namespace=${namespace} --record
+                            kubectl rollout restart deployment/${deployment} --namespace=${namespace}
+                            kubectl rollout status deployment/${deployment} --namespace=${namespace}
                         """
                     }
                 }
