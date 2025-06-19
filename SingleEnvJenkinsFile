@@ -1,0 +1,83 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_CREDENTIALS = credentials('docker-hub-creds')     // Docker Hub credentials
+        GIT_CREDENTIALS    = credentials('git-creds')            // Git credentials
+        SONARQUBE_SERVER   = 'SonarQubeServer'                   // Jenkins SonarQube server config name
+        IMAGE_REPO         = 'yourdockerhubuser/yourapp'         // Docker image repo
+        VALUES_FILE        = 'values/dev.yaml'                   // Fixed values file for dev
+        BRANCH_NAME        = 'dev'                               // Hardcoded branch name
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build with Maven') {
+            steps {
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv(SONARQUBE_SERVER) {
+                    sh 'mvn sonar:sonar'
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    env.IMAGE_TAG = env.BUILD_NUMBER
+                    sh "docker build -t ${IMAGE_REPO}:${IMAGE_TAG} ."
+                }
+            }
+        }
+
+        stage('Trivy Scan') {
+            steps {
+                sh """
+                   trivy image --exit-code 0 --severity HIGH,CRITICAL ${IMAGE_REPO}:${IMAGE_TAG} || true
+                """
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    docker.withRegistry('', 'docker-hub-creds') {
+                        sh "docker push ${IMAGE_REPO}:${IMAGE_TAG}"
+                    }
+                }
+            }
+        }
+
+        stage('Update Helm Values') {
+            steps {
+                sh """
+                   sed -i 's|tag: .*|tag: "${IMAGE_TAG}"|' ${VALUES_FILE}
+                """
+            }
+        }
+
+        stage('Git Commit & Push') {
+            steps {
+                script {
+                    sh """
+                       git config user.name "Jenkins"
+                       git config user.email "jenkins@ci"
+                       git add ${VALUES_FILE}
+                       git commit -m "Update image tag to ${IMAGE_TAG} for dev"
+                       git push https://${GIT_CREDENTIALS_USR}:${GIT_CREDENTIALS_PSW}@github.com/your-org/your-repo.git HEAD:${BRANCH_NAME}
+                    """
+                }
+            }
+        }
+    }
+}
