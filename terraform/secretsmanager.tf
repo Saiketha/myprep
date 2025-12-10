@@ -15,18 +15,21 @@ resource "aws_secretsmanager_secret_version" "example_version" {
 # Resource policy granting another account or role access (optional)
 resource "aws_secretsmanager_secret_policy" "example_policy" {
   secret_arn = aws_secretsmanager_secret.example.arn
-  policy     = <<POLICY
-{
-  "Version":"2012-10-17",
-  "Statement":[
-     {
-       "Sid":"AllowCrossAccountRead",
-       "Effect":"Allow",
-       "Principal":{"AWS":"arn:aws:iam::ACCOUNT_B_ID:role/SomeRole"},
-       "Action":["secretsmanager:GetSecretValue","secretsmanager:DescribeSecret"],
-       "Resource":"*"
-     }
-  ]
-}
-POLICY
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowCrossAccountRead"
+        Effect    = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::ACCOUNT_B_ID:role/SomeRole"
+        }
+        Action    = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource  = "*"
+      }
+    ]
+  })
 }

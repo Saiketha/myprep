@@ -1,0 +1,110 @@
+🟧 AWS Scenarios
+1 ️EC2 Instance Not Accessible via SSH   
+   You launched an EC2 instance, but SSH connection keeps timing out.
+   What steps would you take to troubleshoot?
+
+2️ S3 File Upload Fails with Access Denied
+   A developer gets “Access Denied” while uploading to an S3 bucket, even though they have s3:PutObject permission. What could be wrong?
+
+3️ Auto Scaling Group (ASG) Not Launching Instances   
+   Your ASG is configured but instances are not launching. How would you debug it?
+
+4️ RDS Connection Timeout
+   Your app can't connect to RDS even though credentials are correct. What could be possible causes?
+
+5️ Lambda Function Timing Out
+   Your Lambda function times out after 3 seconds even though logic is correct. How do you debug and fix it?
+
+6️ High Latency Between EC2 and RDS
+   Your app is facing high DB latency even though both EC2 and RDS are in same VPC. How do you investigate?
+
+🟦 Docker Scenarios
+1 Container Keeps Restarting
+   A container runs for 5 seconds and exits continuously (CrashLoop). How would you debug?
+
+2 Docker Image Too Large
+   Your build produces an 800MB image — how do you reduce it?
+
+3 Application Not Accessible from Host
+   You run a container on port 8080, but can’t reach it from browser. How to fix it?
+
+4 Container Logs Not Appearing in CloudWatch
+   Your ECS task is running, but CloudWatch shows no logs. What steps do you take?
+
+5 Docker Build Caching Not Working
+   Docker rebuilds entire image every time. How would you improve build performance?
+
+🟩 Kubernetes Scenarios
+1 Pod in CrashLoopBackOff
+   A Pod keeps restarting repeatedly. What are your debugging steps?
+
+2 Service Not Accessible
+   Pods are healthy, but the service endpoint isn’t reachable. How do you troubleshoot?
+
+3 Pods Stuck in Pending
+   You deployed pods, but they’re stuck in Pending state. What could be the reasons?
+
+4 ConfigMap Changes Not Reflecting
+   You updated a ConfigMap, but the application still shows old values. Why?
+
+5 High CPU Usage in a Node
+   One Kubernetes node is at 95% CPU, others are fine. How do you fix it?
+
+6 Failed Deployment Rollout
+   You applied a new deployment, but rollout fails. How would you investigate?
+
+🟥 Linux Scenarios
+1 Disk Space Full Suddenly
+   A server’s disk got full overnight. How would you identify the cause and free up space?
+
+2 High CPU Usage
+   A process is using 100% CPU — how do you identify which process and why?
+
+3 File Permission Issue
+   A script fails with “Permission Denied”, but you’re root. What could be wrong?
+
+4 Service Not Starting
+   nginx or sshd service fails to start — how do you debug?
+
+5 DNS Not Resolving
+   ping google.com fails but ping 8.8.8.8 works. What’s happening?
+
+🟨 Terraform Scenarios
+1 Terraform Apply Fails with “Already Exists”
+   You’re trying to create an S3 bucket and Terraform throws “Bucket already exists”. How do you handle it?
+
+2 State File Corruption
+   Your remote S3 Terraform state file got corrupted. How do you recover?
+
+3 Unexpected Resource Deletion in Plan
+   Terraform shows a deletion plan for a resource that shouldn’t change. What do you check?
+
+4 Drift Between Infra and State
+   Infra is changed manually in AWS Console. How do you detect and fix drift?
+
+5 Rollback After Bad Apply
+   Your last apply broke the environment. How can you roll back safely?
+
+6 Multiple Environments (Dev, Stage, Prod)
+   How would you structure and manage Terraform state for multiple environments?
+
+🟪 Jenkins Scenarios
+1 Build Trigger Not Working
+   Commits are pushed to GitHub, but Jenkins pipeline isn’t triggered. How do you debug?
+
+2 Jenkins Pipeline Fails Midway
+   Jenkins pipeline stops at one stage without clear error. How do you troubleshoot?
+
+3 Credentials Missing
+   A pipeline fails due to missing AWS or Docker credentials. How do you securely manage them?
+
+4 Jenkins Slave/Agent Not Connecting
+   Jenkins agent is offline and not connecting to master. What steps do you take?
+
+5 Deployment Job Succeeds But App Not Updated
+   Jenkins job shows success, but app version didn’t change in environment. What’s your approach?
+
+6 Long Build Times
+   Your builds take 40+ minutes to complete. How would you optimize?
+
+
