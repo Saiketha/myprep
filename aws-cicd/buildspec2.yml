@@ -1,0 +1,71 @@
+version: 0.2
+
+env:
+  parameter-store:
+    DOCKER_USERNAME: /dockerhub/username
+    DOCKER_PASSWORD: /dockerhub/password
+    DOCKER_URL:     /dockerhub/url
+    GIT_USERNAME:   /git/username
+    GIT_PASSWORD:   /git/password
+    SONAR_TOKEN:    /sonar/token
+  variables:
+    IMAGE_REPO: yourdockerhubuser/yourapp
+    VALUES_FILE: values/dev.yaml
+    BRANCH_NAME: dev
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto17
+      docker: 20
+    commands:
+      - echo "Installing Maven and other tools..."
+      - yum install git -y
+      - curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+      - pip install yq
+
+  pre_build:
+    commands:
+      - echo "Checking out repo..."
+      - git config --global credential.helper store
+      - echo "https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com" >> ~/.git-credentials
+
+      # SonarQube setup
+      - export SONAR_HOST_URL="http://<sonar-url>"
+      - export SONAR_LOGIN="$SONAR_TOKEN"
+
+  build:
+    commands:
+      - echo "Running Maven build..."
+      - mvn clean package -DskipTests
+
+      - echo "Running SonarQube Analysis..."
+      - mvn sonar:sonar -Dsonar.projectKey=myapp
+
+      - echo "Building Docker Image..."
+      - export IMAGE_TAG=$(date +%s)
+      - docker build -t $IMAGE_REPO:$IMAGE_TAG .
+
+      - echo "Scanning image with Trivy..."
+      - trivy image --exit-code 0 --severity HIGH,CRITICAL $IMAGE_REPO:$IMAGE_TAG || true
+
+      - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin "$DOCKER_URL"
+      - docker push $IMAGE_REPO:$IMAGE_TAG
+
+      - echo "Updating Helm values file..."
+      - sed -i "s|tag:*|tag:\"$IMAGE_TAG\"|g" $VALUES_FILE
+
+      - echo "Commit updated Helm file..."
+      - git config user.name "CodeBuild"
+      - git config user.email "codebuild@aws"
+      - git add $VALUES_FILE
+      - git commit -m "Update image tag to $IMAGE_TAG for environment: dev"
+      - git push https://$GIT_USERNAME:$GIT_PASSWORD@github.com/your-org/your-repo.git HEAD:$BRANCH_NAME
+
+  post_build:
+    commands:
+      - echo "Build completed successfully! IMAGE TAG = $IMAGE_TAG"
+
+artifacts:
+  files:
+    - '**/*'
