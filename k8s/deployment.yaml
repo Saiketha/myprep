@@ -1,0 +1,558 @@
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app-ns
+  labels:
+    name: app-ns
+---
+# ServiceAccount referenced by Deployment
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-sa
+  namespace: app-ns
+secrets:
+  - name: app-sa-secret  # optional token secret reference (kube may create automatically)
+---
+# Secret (opaque) used as volume and env example
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+  namespace: app-ns
+type: Opaque
+data:
+  # base64 placeholders
+  DB_PASSWORD: cGFzc3dvcmQxMjM=    # "password123" base64
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCg==  # placeholder
+  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQo==  # placeholder
+---
+# ConfigMap used for environment variables and core app config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: app-ns
+data:
+  APP_ENV: "production"
+  LOG_LEVEL: "info"
+  APP_CMD: "/usr/local/bin/start-app"
+  APP_ARGS: "--port=8080 --metrics"
+  CONFIG_JSON: |
+    {
+      "featureX": true,
+      "maxItems": 100
+    }
+---
+# StorageClass (example)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: standard-sc
+provisioner: kubernetes.io/no-provisioner  # change for cloud e.g. ebs.csi.aws.com or kubernetes.io/aws-ebs
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+---
+# PersistentVolume (example hostPath for demo; replace with real PV on prod)
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: app-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: standard-sc
+  hostPath:
+    path: /mnt/data/app-pv
+---
+# PersistentVolumeClaim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-pvc
+  namespace: app-ns
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard-sc
+---
+# Deployment with full features requested
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-deployment
+  namespace: app-ns
+  labels:
+    app: myapp
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: myapp
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: myapp
+        tier: frontend
+    spec:
+      serviceAccountName: app-sa
+      imagePullSecrets:
+        - name: regcred
+      # Node affinity example (requiredDuringSchedulingIgnoredDuringExecution)
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+                  - key: node-role.kubernetes.io/worker
+                    operator: Exists
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 50
+              preference:
+                matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - us-east-1a
+                      - us-east-1b
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 50
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - myapp
+                topologyKey: topology.kubernetes.io/zone
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - myapp
+              topologyKey: kubernetes.io/hostname
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 300
+        - key: "example-key"
+          operator: "Equal"
+          value: "example-value"
+          effect: "NoSchedule"
+      # TopologySpreadConstraints to spread pods across hosts and zones
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: myapp
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: myapp
+      volumes:
+        - name: config-volume
+          configMap:
+            name: app-config
+        - name: secret-volume
+          secret:
+            secretName: app-secret
+        - name: app-data
+          persistentVolumeClaim:
+            claimName: app-pvc
+      initContainers:
+        - name: init-db
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running init tasks..."
+              # e.g. wait for DB migrate - replace with real init script
+              sleep 2
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          volumeMounts:
+            - name: app-data
+              mountPath: /data
+      containers:
+        - name: myapp
+          image: nginx:1.21
+          imagePullPolicy: IfNotPresent
+          # CMD and ARGS using ConfigMap entries (example placed inline)
+          command:
+            - /bin/sh
+            - -c
+            - "/usr/sbin/nginx -g 'daemon off;'"
+          args:
+            - "-c"
+            - "custom-arg"
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: APP_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_ENV
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: LOG_LEVEL
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: DB_PASSWORD
+            - name: CONFIG_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: CONFIG_JSON
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+            successThreshold: 1
+          readinessProbe:
+            exec:
+              command:
+                - cat
+                - /tmp/ready
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /startup
+              port: http
+            failureThreshold: 30
+            periodSeconds: 10
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/myapp/config
+            - name: secret-volume
+              mountPath: /etc/myapp/secret
+              readOnly: true
+            - name: app-data
+              mountPath: /var/lib/myapp
+        - name: sidecar-logger
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              while true; do
+                date >> /var/log/sidecar.log
+                sleep 60
+              done
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          volumeMounts:
+            - name: app-data
+              mountPath: /var/log
+      restartPolicy: Always
+---
+# ClusterRole for cluster-wide operations (example)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: app-clusterrole
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods", "services"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update"]
+---
+# ClusterRoleBinding to bind cluster role to service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: app-clusterrolebinding
+subjects:
+  - kind: ServiceAccount
+    name: app-sa
+    namespace: app-ns
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: app-clusterrole
+---
+# Role (namespace-scoped) allowing secrets and configmaps ops within app-ns
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: app-role
+  namespace: app-ns
+rules:
+  - apiGroups: [""]
+    resources:
+      - secrets
+      - configmaps
+      - pods
+    verbs:
+      - get
+      - watch
+      - list
+      - create
+      - update
+      - patch
+---
+# RoleBinding to bind Role to ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: app-rolebinding
+  namespace: app-ns
+subjects:
+  - kind: ServiceAccount
+    name: app-sa
+    namespace: app-ns
+roleRef:
+  kind: Role
+  name: app-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# ClusterIP Service to expose pods internally
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp-service
+  namespace: app-ns
+  labels:
+    app: myapp
+spec:
+  selector:
+    app: myapp
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  type: ClusterIP
+---
+# Ingress (networking.k8s.io/v1)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp-ingress
+  namespace: app-ns
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  tls:
+    - hosts:
+        - example.com
+      secretName: example-tls
+  rules:
+    - host: example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: myapp-service
+                port:
+                  number: 80
+---
+# NetworkPolicy - allow only traffic from same namespace and deny other ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-same-namespace
+  namespace: app-ns
+spec:
+  podSelector:
+    matchLabels:
+      app: myapp
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: 
+            matchLabels:
+              app: mydb # allow from only mydb pod in same namespace
+  egress:
+    - to:
+        - podSelector: {}  # allow to any pod in same namespace
+---
+# ResourceQuota for the namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: app-resource-quota
+  namespace: app-ns
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "10"
+    persistentvolumeclaims: "3"
+---
+# Image pull secret (placeholder) - create this locally with kubectl if you have credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: regcred
+  namespace: app-ns
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: e30=  # {} base64 placeholder - replace with real dockerconfigjson
+---
+# Example CoreDNS ConfigMap (kube-system namespace) --- Corefile content
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  Corefile: |
+    .:53 {
+        errors
+        health {
+           lameduck 5s
+        }
+        ready
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+           pods insecure
+           fallthrough in-addr.arpa ip6.arpa
+           ttl 30
+        }
+        prometheus :9153
+        forward . /etc/resolv.conf {
+           max_concurrent 1000
+        }
+        cache 30
+        loop
+        reload
+        loadbalance
+    }
+---
+# Example kube-proxy ConfigMap (if needed) - minimal example
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube-proxy
+  namespace: kube-system
+data:
+  config.conf: |
+    apiVersion: kubeproxy.config.k8s.io/v1
+    kind: KubeProxyConfiguration
+    mode: "iptables"
+---
+# Example kubeconfig (sample, placeholders) - DO NOT USE AS IS
+apiVersion: v1
+kind: Config
+clusters:
+  - name: example-cluster
+    cluster:
+      server: https://YOUR_K8S_API_SERVER:6443
+      certificate-authority-data: REPLACE_WITH_BASE64_CA_DATA
+users:
+  - name: app-user
+    user:
+      token: REPLACE_WITH_TOKEN_OR_CLIENT_CERTS
+contexts:
+  - name: app-context
+    context:
+      cluster: example-cluster
+      user: app-user
+      namespace: app-ns
+current-context: app-context
+---
+# Optional example: TLS secret for Ingress (placeholder)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: example-tls
+  namespace: app-ns
+type: kubernetes.io/tls
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRV...  # base64 placeholder
+  tls.key: LS0tLS1CRUdJTiBSU0Eg...  # base64 placeholder
+---
+# Additional optional monitoring Role for CoreDNS (example)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: coredns-monitoring
+rules:
+  - apiGroups: [""]
+    resources: ["endpoints", "pods", "services"]
+    verbs: ["get", "list", "watch"]
+---
+# Binding CoreDNS monitoring to a serviceaccount (example)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: coredns-monitoring-binding
+subjects:
+  - kind: ServiceAccount
+    name: coredns
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: coredns-monitoring
+  apiGroup: rbac.authorization.k8s.io
