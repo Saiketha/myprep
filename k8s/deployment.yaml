@@ -12,8 +12,8 @@ kind: ServiceAccount
 metadata:
   name: app-sa
   namespace: app-ns
-secrets:
-  - name: app-sa-secret  # optional token secret reference (kube may create automatically)
+imagePullSecrets:
+    name: app-secret # optional token secret reference (kube may create automatically)
 ---
 # Secret (opaque) used as volume and env example
 apiVersion: v1
@@ -38,12 +38,6 @@ data:
   APP_ENV: "production"
   LOG_LEVEL: "info"
   APP_CMD: "/usr/local/bin/start-app"
-  APP_ARGS: "--port=8080 --metrics"
-  CONFIG_JSON: |
-    {
-      "featureX": true,
-      "maxItems": 100
-    }
 ---
 # StorageClass (example)
 apiVersion: storage.k8s.io/v1
@@ -51,7 +45,9 @@ kind: StorageClass
 metadata:
   name: standard-sc
 provisioner: kubernetes.io/no-provisioner  # change for cloud e.g. ebs.csi.aws.com or kubernetes.io/aws-ebs
-volumeBindingMode: WaitForFirstConsumer
+Parameters:
+  type: gp2
+allowVolumeExpansion: true
 reclaimPolicy: Delete
 ---
 # PersistentVolume (example hostPath for demo; replace with real PV on prod)
@@ -99,7 +95,7 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxUnavailable: 1
+      maxUnavailable: 0
       maxSurge: 1
   template:
     metadata:
@@ -120,8 +116,6 @@ spec:
                     operator: In
                     values:
                       - linux
-                  - key: node-role.kubernetes.io/worker
-                    operator: Exists
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 50
               preference:
@@ -152,10 +146,6 @@ spec:
                       - myapp
               topologyKey: kubernetes.io/hostname
       tolerations:
-        - key: "node.kubernetes.io/not-ready"
-          operator: "Exists"
-          effect: "NoExecute"
-          tolerationSeconds: 300
         - key: "example-key"
           operator: "Equal"
           value: "example-value"
@@ -396,12 +386,7 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: "nginx"
     nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
 spec:
-  tls:
-    - hosts:
-        - example.com
-      secretName: example-tls
   rules:
     - host: example.com
       http:

@@ -17,14 +17,14 @@ pipeline {
 
         stage('Build with Maven') {
             steps {
-                sh 'mvn clean package -DskipTests'
+                sh 'mvn clean deploy -DskipTests'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv(SONARQUBE_SERVER) {
-                    sh 'mvn sonar:sonar'
+                    sh '''sonar-scanner -Dsonar.projectKey=myapp -Dsonar.projectName=MyApp -Dsonar.host.url=$SONARQUBE_SERVER'''
                 }
             }
         }
@@ -41,7 +41,7 @@ pipeline {
         stage('Trivy Scan') {
             steps {
                 sh """
-                   trivy image --format table --output report.xml ${image_repo}:${image_tag}
+                   trivy image --format table --output report.xml ${IMAGE_REPO}:${IMAGE_TAG}
                 """
             }
         }
@@ -50,7 +50,9 @@ pipeline {
             steps {
                 script {
                     docker.withRegistry('', 'docker-hub-creds') {
-                        sh "docker push ${IMAGE_REPO}:${IMAGE_TAG}"
+                        sh """
+                        docker login -u ${DOCKER_CREDENTIALS_USR} -p ${DOCKER_CREDENTIALS_PSW}
+                        docker push ${IMAGE_REPO}:${IMAGE_TAG}"
                     }
                 }
             }
@@ -94,6 +96,11 @@ pipeline {
                     """
                 }
             }
+        }
+    }
+    post {
+        always {
+            cleanWs()
         }
     }
 }
