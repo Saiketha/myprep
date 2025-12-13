@@ -1,5 +1,9 @@
 pipeline {
-    agent any
+    agent{
+        docker {
+            image 'mycustom-image:latest'
+        }
+    }
 
     environment {
         DOCKER_CREDENTIALS = credentials('docker-hub-creds')     // Docker Hub credentials
