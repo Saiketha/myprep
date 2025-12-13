@@ -69,7 +69,7 @@ resource "aws_dynamodb_table" "example" {
     name               = "gsi1"
     hash_key           = "gsi1pk"
     range_key          = "sk"
-    projection_type    = "ALL"
+    projection_type    = "keys_only"
     # If PROVISIONED, set read_capacity/write_capacity here
   }
 

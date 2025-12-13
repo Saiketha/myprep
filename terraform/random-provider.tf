@@ -13,10 +13,10 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "my-tfstate-bucket"    # your existing backend bucket
+    bucket         = "my-tfstate-bucket" 
     key            = "random-s3-example/terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "tf-locks"             # optional for state locking
+    dynamodb_table = "tf-locks"  
     encrypt        = true
   }
 }
@@ -28,8 +28,6 @@ provider "aws" {
 # ✅ Generate a random string for uniqueness
 resource "random_string" "suffix" {
   length  = 6
-  upper   = false
-  special = false
 }
 
 # ✅ Create an S3 bucket using the random suffix

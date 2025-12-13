@@ -6,19 +6,6 @@ resource "aws_s3_bucket" "pre_post_example" {
     prevent_destroy = false
   }
 
-  # Precondition: ensure bucket name follows pattern
-  lifecycle_rule {
-    id = "tmp" # not related; example for structure
-  }
-
-  dynamic "object_lock_configuration" {
-    for_each = []
-    content {}
-  }
-
-  # Terraform 1.2+ precondition/postcondition use `validation` style within resources:
-  # NOTE: precondition/postcondition blocks exist for resource and module blocks in TF >=1.2
-  # Example (syntactic form):
   precondition {
     condition     = length(aws_s3_bucket.pre_post_example.bucket) > 5
     error_message = "Bucket name must be longer than 5 chars"
@@ -31,7 +18,6 @@ resource "aws_s3_bucket" "pre_post_example" {
   }
 }
 
-# depends_on usage example: ensure nat created before private route table
 resource "aws_route_table" "private_rt_dep" {
   vpc_id = aws_vpc.main.id
   route {

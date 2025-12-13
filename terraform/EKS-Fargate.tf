@@ -38,7 +38,6 @@ resource "aws_eks_fargate_profile" "fp" {
 
   selector {
     namespace = "default"
-    # optionally labels
   }
 }
 
