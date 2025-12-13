@@ -19,14 +19,14 @@ pipeline {
 
         stage('Build with Maven') {
             steps {
-                sh 'mvn clean package -DskipTests'
+                sh 'mvn clean deploy -DskipTests'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv(SONARQUBE_SERVER) {
-                    sh 'mvn sonar:sonar'
+                    sh '''sonar-scanner -Dsonar.projectKey=myapp -Dsonar.projectName=MyApp -Dsonar.host.url=$SONARQUBE_SERVER'''
                 }
             }
         }
@@ -43,7 +43,7 @@ pipeline {
         stage('Trivy Scan') {
             steps {
                 sh """
-                   trivy image --exit-code 0 --severity HIGH,CRITICAL ${IMAGE_REPO}:${IMAGE_TAG} || true
+                   trivy image --format table --output report.html ${IMAGE_REPO}:${IMAGE_TAG}
                 """
             }
         }
@@ -78,6 +78,11 @@ pipeline {
                     """
                 }
             }
+        }
+    }
+    post {
+        always {
+            cleanWs()
         }
     }
 }
