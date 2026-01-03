@@ -1,0 +1,1314 @@
+Commands Reference
+
+1. KUBERNETES (K8S) COMMANDS
+
+Cluster Management
+```
+Get cluster info
+kubectl cluster-info
+kubectl get nodes -o wide
+kubectl describe node <node-name>
+
+Get API versions
+kubectl api-versions
+kubectl api-resources
+
+Kubeconfig management
+kubectl config view
+kubectl config get-contexts
+kubectl config use-context <context-name>
+kubectl config set-context <context-name> --namespace=<namespace>
+kubectl config delete-context <context-name>
+
+Add new cluster to kubeconfig
+kubectl config set-cluster <cluster-name> --server=<server-url> --certificate-authority=<ca-path>
+```
+
+Namespace Management
+```
+List and create namespaces
+kubectl get namespaces
+kubectl create namespace <namespace>
+kubectl delete namespace <namespace>
+
+Set default namespace
+kubectl config set-context --current --namespace=<namespace>
+
+Get resource quota
+kubectl get resourcequota -n <namespace>
+kubectl describe resourcequota <quota-name> -n <namespace>
+```
+
+Pod Management
+```
+List pods
+kubectl get pods
+kubectl get pods -n <namespace>
+kubectl get pods -o wide
+kubectl get pods -l <label-key>=<label-value>
+kubectl get pods --all-namespaces
+kubectl get pods -A
+
+Pod details
+kubectl describe pod <pod-name> -n <namespace>
+kubectl logs <pod-name> -n <namespace>
+kubectl logs <pod-name> -c <container-name> -n <namespace>
+kubectl logs <pod-name> --tail=100 -f  Follow logs, last 100 lines
+
+Execute commands in pod
+kubectl exec -it <pod-name> -- /bin/
+kubectl exec -it <pod-name> -c <container-name> -- /bin/sh
+
+Port forward
+kubectl port-forward <pod-name> 8080:8080 -n <namespace>
+kubectl port-forward svc/<service-name> 8080:8080 -n <namespace>
+
+Delete pods
+kubectl delete pod <pod-name>
+kubectl delete pods --all -n <namespace>
+kubectl delete pod <pod-name> --grace-period=0 --force  Force delete
+
+Copy files
+kubectl cp <namespace>/<pod-name>:<file-path> <local-path>
+kubectl cp <local-path> <namespace>/<pod-name>:<file-path>
+```
+
+Deployment Management
+```
+List deployments
+kubectl get deployments
+kubectl get deploy -n <namespace>
+kubectl get deploy -o yaml
+
+Create and update deployments
+kubectl create deployment <name> --image=<image>
+kubectl apply -f <deployment.yaml>
+kubectl apply -f . --recursive  Apply all yamls in directory
+
+Deployment scaling
+kubectl scale deployment <name> --replicas=3
+kubectl autoscale deployment <name> --min=2 --max=10 --cpu-percent=80
+
+Deployment updates
+kubectl set image deployment/<name> <container>=<new-image>
+kubectl rollout status deployment/<name>
+kubectl rollout history deployment/<name>
+kubectl rollout undo deployment/<name>
+kubectl rollout undo deployment/<name> --to-revision=2
+
+Delete deployments
+kubectl delete deployment <name>
+kubectl delete -f <deployment.yaml>
+```
+
+Service Management
+```
+List services
+kubectl get svc
+kubectl get services -n <namespace>
+kubectl get svc -o wide
+
+Service details
+kubectl describe svc <service-name>
+kubectl get endpoints <service-name>
+
+Create services
+kubectl expose deployment <name> --type=LoadBalancer --port=80 --target-port=8080
+kubectl expose deployment <name> --type=ClusterIP --port=80 --target-port=8080
+
+Service types
+ClusterIP - Internal only
+NodePort - Node IP + Port
+LoadBalancer - Cloud LB
+ExternalName - DNS alias
+```
+
+ConfigMap and Secrets
+```
+ConfigMaps
+kubectl create configmap <name> --from-literal=key=value
+kubectl create configmap <name> --from-file=<file-path>
+kubectl get configmap
+kubectl get configmap <name> -o yaml
+kubectl describe configmap <name>
+kubectl delete configmap <name>
+
+Secrets
+kubectl create secret generic <name> --from-literal=key=value
+kubectl create secret docker-registry <name> --docker-server=<server> --docker-username=<user> --docker-password=<pass> --docker-email=<email>
+kubectl get secrets
+kubectl get secret <name> -o yaml
+kubectl describe secret <name>
+kubectl delete secret <name>
+
+Decode secret
+kubectl get secret <name> -o jsonpath='{.data.password}' | base64 -d
+```
+
+Ingress Management
+```
+List ingresses
+kubectl get ingress
+kubectl get ingress -n <namespace>
+
+Ingress details
+kubectl describe ingress <ingress-name>
+
+Create ingress
+kubectl create ingress <name> --class=<class> --rule="<host>=<service>:<port>"
+
+Edit ingress
+kubectl edit ingress <ingress-name>
+```
+
+StatefulSet and DaemonSet
+```
+StatefulSets (for stateful apps like databases)
+kubectl get statefulsets
+kubectl scale statefulset <name> --replicas=3
+kubectl delete statefulset <name> --cascade=orphan  Keep pods
+
+DaemonSets (one pod per node)
+kubectl get daemonsets
+kubectl describe daemonset <name>
+kubectl delete daemonset <name>
+```
+
+Resource Management
+```
+Get all resources
+kubectl get all -n <namespace>
+
+Top (resource usage)
+kubectl top nodes
+kubectl top pods -n <namespace>
+
+Resource quotas
+kubectl apply -f quota.yaml
+kubectl get resourcequota -n <namespace>
+
+Limit ranges
+kubectl apply -f limitrange.yaml
+kubectl get limitrange -n <namespace>
+```
+
+Debugging and Troubleshooting
+```
+Check events
+kubectl get events -n <namespace>
+kubectl get events -n <namespace> --sort-by='.lastTimestamp'
+
+Describe resources
+kubectl describe node <node-name>
+kubectl describe pod <pod-name>
+kubectl describe svc <service-name>
+
+View resource definitions
+kubectl get pod <pod-name> -o yaml
+kubectl get deployment <name> -o json
+
+Debug pod
+kubectl debug <pod-name> -it --image=<debug-image>
+
+Check node status
+kubectl describe node <node-name>
+kubectl get nodes --show-labels
+
+Troubleshoot
+kubectl logs <pod-name> --previous  Previous logs if crashed
+kubectl get pod <pod-name> -o jsonpath='{.status.containerStatuses[].lastState}'
+```
+
+RBAC (Role-Based Access Control)
+```
+Roles and RoleBindings
+kubectl create role <role-name> --verb=get,list,watch --resource=pods
+kubectl create rolebinding <binding-name> --role=<role-name> --serviceaccount=<ns>:<sa>
+
+ClusterRoles and ClusterRoleBindings
+kubectl create clusterrole <role-name> --verb=get,list --resource=pods
+kubectl create clusterrolebinding <binding-name> --clusterrole=<role-name> --serviceaccount=<ns>:<sa>
+
+List roles
+kubectl get roles -n <namespace>
+kubectl get rolebindings -n <namespace>
+kubectl get clusterroles
+kubectl get clusterrolebindings
+```
+
+Exec and Debugging
+```
+Run debug container
+kubectl run -it --rm debug --image=<image> --restart=Never -- /bin/
+
+Attach to running container
+kubectl attach <pod-name> -it
+
+Logs with timestamps
+kubectl logs <pod-name> --timestamps=true
+kubectl logs -f <pod-name> --since=5m  Last 5 minutes
+
+Stream logs from multiple pods
+kubectl logs -f -l app=<label> --all-containers=true
+```
+
+---
+
+2. DOCKER COMMANDS
+
+Image Management
+```
+List images
+docker images
+docker images -a  Include intermediate images
+docker image ls
+
+Search images
+docker search <image-name>
+
+Pull images
+docker pull <image>:<tag>
+docker pull <registry>/<image>:<tag>
+docker pull gcr.io/project-id/image:latest
+
+Build images
+docker build -t <image>:<tag> .
+docker build -t <image>:<tag> -f <dockerfile-path> .
+docker build --build-arg KEY=value -t <image>:<tag> .
+docker build --target <stage> -t <image>:<tag> .  Multi-stage build
+
+Tag images
+docker tag <source-image>:<tag> <target-image>:<tag>
+docker tag myapp:latest myregistry/myapp:latest
+
+Push images
+docker push <registry>/<image>:<tag>
+docker push gcr.io/project-id/image:latest
+docker push 123456789.dkr.ecr.us-east-1.amazonaws.com/myapp:latest
+
+Remove images
+docker rmi <image>:<tag>
+docker rmi $(docker images -q)  Remove all images
+docker image prune  Remove unused images
+docker image prune -a  Remove all unused images
+
+Inspect images
+docker inspect <image>:<tag>
+docker history <image>:<tag>
+```
+
+Container Management
+```
+Run containers
+docker run -d --name <container-name> <image>:<tag>
+docker run -it --name <container-name> <image>:<tag> /bin/
+docker run -p 8080:8080 -v /host/path:/container/path <image>
+docker run -e ENV_VAR=value <image>
+docker run --rm <image>  Auto remove on exit
+
+List containers
+docker ps
+docker ps -a  Include stopped
+docker ps -aq  Only container IDs
+
+Container info
+docker inspect <container-id>
+docker logs <container-id>
+docker logs -f <container-id>  Follow logs
+docker logs --tail=100 <container-id>
+docker stats <container-id>  Resource usage
+
+Execute commands
+docker exec -it <container-id> /bin/
+docker exec <container-id> <command>
+
+Container management
+docker start <container-id>
+docker stop <container-id>
+docker restart <container-id>
+docker kill <container-id>  Force stop
+docker rm <container-id>
+docker rm -f <container-id>  Force remove
+docker rm $(docker ps -aq)  Remove all containers
+
+Copy files
+docker cp <container-id>:/file/path <local-path>
+docker cp <local-path> <container-id>:/file/path
+
+View changes
+docker diff <container-id>
+docker commit <container-id> <image>:<tag>  Create image from container
+```
+
+Registry and Authentication
+```
+Login to registry
+docker login
+docker login <registry-url>
+docker login -u <username> -p <password> <registry-url>
+
+Logout
+docker logout
+docker logout <registry-url>
+
+Save and load
+docker save <image>:<tag> -o <file.tar>
+docker load -i <file.tar>
+```
+
+Docker Networking
+```
+List networks
+docker network ls
+docker network inspect <network-name>
+
+Create networks
+docker network create <network-name>
+docker network create --driver bridge <network-name>
+docker network create --driver overlay <network-name>  Swarm
+
+Connect/Disconnect
+docker network connect <network-name> <container-id>
+docker network disconnect <network-name> <container-id>
+
+Remove networks
+docker network rm <network-name>
+docker network prune  Remove unused
+```
+
+Docker Volumes
+```
+List volumes
+docker volume ls
+docker volume inspect <volume-name>
+
+Create volumes
+docker volume create <volume-name>
+
+Remove volumes
+docker volume rm <volume-name>
+docker volume prune  Remove unused
+
+Run with volume
+docker run -v <volume-name>:/path <image>
+docker run -v /host/path:/container/path <image>
+```
+
+Docker Compose
+```
+Start services
+docker-compose up
+docker-compose up -d  Detached
+docker-compose up --scale service=3  Scale service
+
+Stop services
+docker-compose stop
+docker-compose down  Remove containers and networks
+docker-compose down -v  Also remove volumes
+
+Logs
+docker-compose logs
+docker-compose logs -f <service-name>
+docker-compose logs --tail=100
+
+Execute commands
+docker-compose exec <service-name> /bin/
+docker-compose run <service-name> <command>
+
+Build
+docker-compose build
+docker-compose build --no-cache
+
+Push
+docker-compose push
+```
+
+Docker Security
+```
+Run as user
+docker run --user 1000 <image>
+
+Limit resources
+docker run --memory=512m --cpus=1 <image>
+
+Read-only filesystem
+docker run --read-only <image>
+
+Seccomp and AppArmor
+docker run --security-opt seccomp=<profile> <image>
+docker run --security-opt apparmor=<profile> <image>
+
+Scan images for vulnerabilities
+docker scan <image>:<tag>
+```
+
+---
+
+3. LINUX COMMANDS (Essential for DevOps)
+
+File Management
+```
+List files
+ls -la
+ls -lh  Human-readable sizes
+ls -lR  Recursive
+ls -1  One per line
+
+Tree view
+tree
+tree -L 2  Depth limit
+
+File operations
+cp -r /source /dest  Copy recursive
+mv /source /dest  Move
+rm -rf /path  Remove recursive force
+mkdir -p /path/to/dir  Create nested dirs
+touch <file>  Create file
+
+File content
+cat <file>
+head -n 20 <file>  First 20 lines
+tail -n 20 <file>  Last 20 lines
+tail -f <file>  Follow file
+wc -l <file>  Line count
+grep "pattern" <file>
+```
+
+Text Processing
+```
+Search and replace
+grep -r "pattern" /path
+grep -E "regex" <file>
+grep -v "pattern" <file>  Invert match
+sed 's/old/new/g' <file>
+sed -i 's/old/new/g' <file>  In-place edit
+
+Awk and cut
+awk '{print $1, $3}' <file>
+cut -d: -f1 <file>  Delimiter : field 1
+paste file1 file2
+
+Sort and uniq
+sort <file>
+sort -u <file>  Unique
+uniq -c <file>  Count duplicates
+```
+
+System and Performance
+```
+System info
+uname -a
+lsb_release -a
+cat /etc/os-release
+hostnamectl
+
+Disk usage
+df -h  Disk space
+du -sh /path  Directory size
+du -sh *  Size of each item
+
+Memory and CPU
+free -h  Memory
+top
+htop
+ps aux | grep <process>
+
+Process management
+ps -ef
+ps aux --sort=-%mem  By memory
+ps aux --sort=-%cpu  By CPU
+kill <pid>
+kill -9 <pid>  Force kill
+```
+
+User and Permissions
+```
+User management
+useradd <username>
+usermod -aG sudo <username>  Add to sudoers
+passwd <username>
+deluser <username>
+
+Permissions
+chmod 755 <file>
+chmod u+x <file>  Add execute for user
+chown user:group <file>
+chown -R user:group /path  Recursive
+
+Sudo
+sudo <command>
+sudo -u <user> <command>
+sudo visudo  Edit sudoers safely
+```
+
+Networking
+```
+IP and DNS
+ip addr show
+ip route show
+hostname -I
+nslookup <domain>
+dig <domain>
+
+Network tools
+ping -c 5 <host>
+traceroute <host>
+telnet <host> <port>
+netstat -tulpn  Active connections
+ss -tulpn  Socket statistics
+lsof -i :<port>  Process using port
+
+SSH
+ssh user@host
+ssh -i /path/to/key user@host
+ssh -p <port> user@host
+scp -r /local/path user@host:/remote/path
+scp -i /key user@host:/remote/path /local/path
+
+Firewall
+ufw enable
+ufw allow 22
+ufw deny 80
+ufw status
+```
+
+Package Management
+```
+apt (Debian/Ubuntu)
+apt-get update
+apt-get upgrade
+apt-get install <package>
+apt-get remove <package>
+apt-cache search <package>
+apt list --installed
+
+yum (RHEL/CentOS)
+yum update
+yum install <package>
+yum remove <package>
+yum search <package>
+yum list installed
+
+General
+which <command>  Find command path
+whereis <command>
+```
+
+Systemd
+```
+Service management
+systemctl start <service>
+systemctl stop <service>
+systemctl restart <service>
+systemctl enable <service>  Enable on boot
+systemctl disable <service>
+systemctl status <service>
+
+Check services
+systemctl list-units --type=service
+systemctl list-unit-files
+
+Logs
+journalctl -u <service>
+journalctl -u <service> -f  Follow
+journalctl --since "1 hour ago"
+journalctl -p err  Error level
+```
+
+Compression and Archives
+```
+tar
+tar -czf archive.tar.gz /path  Create
+tar -xzf archive.tar.gz  Extract
+tar -tzf archive.tar.gz  List
+tar -czf - /path | gzip > archive.tar.gz  Pipe
+
+zip
+zip -r archive.zip /path
+unzip archive.zip
+unzip -l archive.zip  List
+
+gzip
+gzip <file>
+gunzip <file>
+zcat <file>
+```
+
+Background Processes
+```
+Run in background
+<command> &
+nohup <command> &  Immune to hangups
+
+Job control
+jobs
+fg %1  Foreground job
+bg %1  Background job
+
+Screen/Tmux
+screen
+screen -S <name>
+screen -ls
+screen -r <name>
+
+tmux
+tmux new-session -s <name>
+tmux list-sessions
+tmux attach -t <name>
+```
+
+Scripting and Cron
+```
+Cron jobs
+crontab -e  Edit
+crontab -l  List
+0 2 * * * /path/to/script.sh  2 AM daily
+*/15 * * * * /path/to/script.sh  Every 15 min
+
+ scripting
+!/bin/
+set -e  Exit on error
+set -x  Debug mode
+[[ -f "$file" ]] && echo "exists"
+for i in {1..10}; do echo $i; done
+```
+
+---
+
+4. GIT COMMANDS
+
+Basic Configuration
+```
+Configure git
+git config --global user.name "Your Name"
+git config --global user.email "email@example.com"
+git config --global core.editor "vim"
+git config --list
+
+SSH setup
+ssh-keygen -t rsa -b 4096 -C "email@example.com"
+ssh-add ~/.ssh/id_rsa
+cat ~/.ssh/id_rsa.pub  Copy to GitHub/GitLab
+```
+
+Repository Management
+```
+Initialize and clone
+git init
+git clone <repo-url>
+git clone -b <branch> <repo-url>
+git clone --depth 1 <repo-url>  Shallow clone
+
+Remote management
+git remote -v  List remotes
+git remote add <name> <url>
+git remote remove <name>
+git remote set-url origin <new-url>
+git remote show origin
+```
+
+Branching
+```
+Create and switch branches
+git branch
+git branch -a  All branches
+git branch <branch-name>
+git checkout <branch-name>
+git checkout -b <branch-name>  Create and switch
+git switch <branch-name>  New syntax
+
+Delete branches
+git branch -d <branch-name>  Safe delete
+git branch -D <branch-name>  Force delete
+git push origin --delete <branch-name>  Delete remote
+
+Branch tracking
+git branch -u origin/<branch> <branch>
+git branch -vv  Verbose tracking
+```
+
+Commits
+```
+Stage changes
+git add <file>
+git add .  All changes
+git add -A  All changes (including deletions)
+git add -p  Interactive staging (patches)
+
+Commit
+git commit -m "message"
+git commit -am "message"  Stage and commit tracked files
+git commit --amend  Amend last commit
+git commit --amend --no-edit  Amend without changing message
+
+View commits
+git log
+git log --oneline
+git log --graph --all --decorate
+git log -p  Show changes
+git log --author="name"
+git log --since="2 weeks ago"
+git show <commit>
+```
+
+Synchronization
+```
+Fetch and pull
+git fetch
+git fetch origin
+git fetch --all  All remotes
+git pull  Fetch + merge
+git pull --rebase  Fetch + rebase
+
+Push
+git push
+git push origin <branch>
+git push -u origin <branch>  Set upstream
+git push --all
+git push --tags
+git push origin --delete <branch>  Delete remote branch
+git push --force  Force push (use carefully!)
+git push --force-with-lease  Safer force push
+```
+
+Stashing
+```
+Stash changes
+git stash
+git stash save "description"
+git stash list
+git stash show stash@{0}
+git stash show -p stash@{0}  Show diff
+
+Apply stash
+git stash pop
+git stash apply stash@{0}
+git stash drop stash@{0}
+git stash clear
+```
+
+Rebasing and Merging
+```
+Merge
+git merge <branch>
+git merge --no-ff <branch>  Create merge commit
+git merge --squash <branch>  Squash commits
+
+Rebase
+git rebase <branch>
+git rebase -i HEAD~3  Interactive rebase last 3 commits
+git rebase --continue
+git rebase --abort
+
+Merge strategies
+git merge -X theirs <branch>  Prefer their changes
+git merge -X ours <branch>  Prefer our changes
+```
+
+Resolving Conflicts
+```
+Check status during merge
+git status
+git diff
+git diff --cached
+
+Resolve conflicts
+Edit file manually then:
+git add <resolved-file>
+git commit
+
+Or use tools
+git mergetool
+git checkout --ours <file>
+git checkout --theirs <file>
+
+Abort merge
+git merge --abort
+```
+
+Undoing Changes
+```
+Discard changes
+git checkout <file>  Discard in working directory
+git reset <file>  Unstage file
+git reset HEAD~1  Undo last commit
+git reset --soft HEAD~1  Undo commit, keep changes
+git reset --hard HEAD~1  Undo commit, discard changes
+
+Revert commits
+git revert <commit>  Create new commit that undoes changes
+
+Clean working directory
+git clean -fd  Remove untracked files and directories
+```
+
+Tags
+```
+Create tags
+git tag <tag-name>
+git tag -a <tag-name> -m "message"
+git tag -l
+
+Push tags
+git push origin <tag-name>
+git push origin --tags
+git push origin --delete <tag-name>  Delete remote tag
+
+Show tag
+git show <tag-name>
+```
+
+Inspecting History
+```
+Diff commands
+git diff  Working vs staged
+git diff --cached  Staged vs committed
+git diff HEAD  Working vs HEAD
+git diff <branch1> <branch2>
+git diff <commit1> <commit2>
+
+Blame and bisect
+git blame <file>  Who changed each line
+git bisect start  Find commit that broke things
+git bisect bad
+git bisect good <commit>
+git bisect reset
+```
+
+Advanced
+```
+Cherry-pick
+git cherry-pick <commit>
+git cherry-pick <commit1> <commit2>
+
+Reflog
+git reflog  Recovery tool
+git reset --hard <reflog-entry>
+
+Patch
+git format-patch -1 <commit>  Create patch file
+git am < patch.patch  Apply patch
+
+Worktree
+git worktree list
+git worktree add <path> <branch>
+git worktree remove <path>
+```
+
+---
+
+5. TERRAFORM COMMANDS
+
+Basic Commands
+```
+Initialize working directory
+terraform init
+terraform init -backend-config="key=value"
+terraform init -upgrade  Upgrade provider versions
+
+Format code
+terraform fmt
+terraform fmt -recursive  Format all files
+
+Validate configuration
+terraform validate
+terraform validate -json
+```
+
+Planning and Applying
+```
+Plan changes
+terraform plan
+terraform plan -out=tfplan  Save to file
+terraform plan -target=<resource>  Target specific resource
+terraform plan -var="key=value"
+terraform plan -var-file=terraform.tfvars
+terraform plan -json > plan.json  JSON output
+
+Apply changes
+terraform apply
+terraform apply tfplan  Apply saved plan
+terraform apply -auto-approve
+terraform apply -target=<resource>
+terraform apply -var="key=value"
+
+Destroy resources
+terraform destroy
+terraform destroy -target=<resource>
+terraform destroy -auto-approve
+```
+
+State Management
+```
+View state
+terraform state list
+terraform state show <resource>
+terraform state show <resource.id>
+
+Manage state
+terraform state mv <source> <destination>
+terraform state rm <resource>  Remove from state
+terraform state replace-provider <source> <destination>
+
+State files
+terraform state pull  Get state
+terraform state push <file>
+terraform show
+terraform show -json
+```
+
+Imports
+```
+Import existing resources
+terraform import <resource.name> <resource-id>
+terraform import aws_instance.example i-1234567890abcdef0
+terraform import aws_security_group.example sg-12345678
+```
+
+Workspace Management
+```
+Workspace commands
+terraform workspace list
+terraform workspace new <workspace>
+terraform workspace select <workspace>
+terraform workspace delete <workspace>
+
+Workspace usage
+terraform plan -out=tfplan
+terraform apply tfplan
+
+Multi-workspace example
+terraform workspace new prod
+terraform workspace select prod
+terraform apply
+```
+
+Debugging and Troubleshooting
+```
+Enable debug logging
+TF_LOG=DEBUG terraform plan
+TF_LOG=DEBUG terraform apply
+TF_LOG_PATH=/tmp/tf.log terraform plan
+
+Graph
+terraform graph  Dependency graph
+terraform graph | dot -Tsvg > graph.svg
+
+Console
+terraform console  Interactive console
+terraform console < script.txt
+
+Refresh state
+terraform refresh
+```
+
+Advanced
+```
+Get modules
+terraform get
+terraform get -update
+
+Taint resources (force replace)
+terraform taint <resource>
+terraform untaint <resource>
+
+Force unlock (use carefully!)
+terraform force-unlock <lock-id>
+
+Data sources
+terraform data source <provider>_<resource>
+
+Modules
+terraform init -upgrade  Upgrade modules
+```
+
+Working with Different Backends
+```
+S3 backend
+terraform init \
+  -backend-config="bucket=mybucket" \
+  -backend-config="key=path/to/terraform.tfstate" \
+  -backend-config="region=us-east-1"
+
+Terraform Cloud
+terraform login  Authenticate
+terraform init  Uses cloud backend
+
+Local backend
+terraform init  Default local state
+```
+
+---
+
+6. HELM COMMANDS
+
+Helm Repository Management
+```
+Add repositories
+helm repo add <repo-name> <repo-url>
+helm repo add stable https://charts.helm.sh/stable
+helm repo add bitnami https://charts.bitnami.com/bitnami
+
+Repository operations
+helm repo list
+helm repo update
+helm repo remove <repo-name>
+helm repo index <directory>  Create index for local repo
+```
+
+Chart Management
+```
+Search charts
+helm search repo <repo>
+helm search repo <repo> --versions
+helm search hub <keyword>
+
+Pull and inspect
+helm pull <repo>/<chart>
+helm pull <repo>/<chart> --version <version>
+helm pull <repo>/<chart> --untar
+helm inspect chart <repo>/<chart>
+helm inspect values <repo>/<chart>
+helm template <release> <repo>/<chart>  Render templates
+```
+
+Release Management
+```
+Install releases
+helm install <release> <chart>
+helm install <release> <repo>/<chart>
+helm install <release> <repo>/<chart> -n <namespace>
+helm install <release> <repo>/<chart> --create-namespace
+helm install <release> <repo>/<chart> --values values.yaml
+helm install <release> <repo>/<chart> --set key=value
+helm install <release> <repo>/<chart> --set-string key=value  Force string
+helm install <release> <repo>/<chart> -f values.yaml -f overrides.yaml
+
+Upgrade releases
+helm upgrade <release> <chart>
+helm upgrade <release> <repo>/<chart> --values values.yaml
+helm upgrade <release> <repo>/<chart> --reuse-values
+helm upgrade --install <release> <repo>/<chart>  Install or upgrade
+
+List releases
+helm list
+helm list -n <namespace>
+helm list --all-namespaces
+helm list -a  Include uninstalled
+
+Release history
+helm history <release>
+helm history <release> -n <namespace>
+helm get all <release>
+helm get values <release>
+helm get manifest <release>
+```
+
+Rollback and Deletion
+```
+Rollback
+helm rollback <release>
+helm rollback <release> <revision>
+helm rollback <release> -n <namespace>
+
+Delete releases
+helm uninstall <release>
+helm uninstall <release> -n <namespace>
+helm uninstall <release> --keep-history  Keep history
+helm delete <release>  Alternative syntax
+```
+
+Debugging
+```
+Dry run
+helm install <release> <chart> --dry-run
+helm install <release> <chart> --dry-run --debug
+helm upgrade <release> <chart> --dry-run --debug
+
+Get values
+helm get values <release>
+helm get values <release> -n <namespace>
+
+Test charts
+helm test <release>
+helm test <release> -n <namespace>
+
+Lint charts
+helm lint <chart-path>
+helm lint --strict <chart-path>
+```
+
+Chart Development
+```
+Create chart
+helm create <chart-name>
+
+Package chart
+helm package <chart-path>
+
+Dependency management
+helm dependency list <chart-path>
+helm dependency update <chart-path>
+helm dependency build <chart-path>
+
+Plugin management
+helm plugin list
+helm plugin install <plugin-url>
+helm plugin update <plugin-name>
+```
+
+Advanced
+```
+Get chart contents
+helm show all <repo>/<chart>
+helm show chart <repo>/<chart>
+helm show values <repo>/<chart>
+helm show readme <repo>/<chart>
+
+Status and variables
+helm status <release>
+helm status <release> -n <namespace>
+helm variables  See variables
+
+Completion
+helm completion  > /etc/_completion.d/helm
+helm completion zsh > ~/.zsh/completions/_helm
+```
+
+---
+
+7. ADVANCED DEVOPS PATTERNS
+
+Multi-Environment Deployments
+```
+Terraform with workspaces
+terraform workspace new dev
+terraform workspace new prod
+terraform workspace select dev
+terraform apply -var-file=dev.tfvars
+
+Helm with different environments
+helm install release bitnami/app -f values.yaml -f values-prod.yaml
+helm upgrade release bitnami/app -f values.yaml -f values-prod.yaml
+
+K8s with different namespaces
+kubectl create namespace dev
+kubectl create namespace prod
+kubectl apply -f deployment.yaml -n dev
+kubectl apply -f deployment.yaml -n prod
+```
+
+CI/CD Pipelines
+```
+Git hooks
+git config core.hooksPath ./hooks
+chmod +x .git/hooks/*
+
+Common pre-commit hook
+!/bin/
+terraform fmt -check
+helm lint ./charts/*
+docker scan myimage:latest
+```
+
+Monitoring and Logging
+```
+K8s metrics
+kubectl get pods --all-namespaces --show-labels
+kubectl top pods -n <namespace>
+
+Docker stats
+docker stats <container-id>
+
+Log aggregation
+kubectl logs -f <pod> -n <namespace>
+docker logs -f <container-id>
+journalctl -f
+
+Prometheus queries in Helm
+helm install prometheus stable/prometheus
+helm install grafana stable/grafana
+```
+
+Security Best Practices
+```
+Scan images
+docker scan <image>
+trivy image <image>
+
+Check vulnerabilities
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image <image>
+
+K8s security
+kubectl auth can-i get pods --namespace=<ns>
+kubectl apply -f network-policy.yaml
+kubectl apply -f pod-security-policy.yaml
+
+Terraform plan review
+terraform plan -json > plan.json
+tfsec plan.json
+```
+
+---
+
+8. QUICK REFERENCE - MOST USED COMMANDS
+
+Daily Commands
+```
+K8s
+kubectl get pods
+kubectl logs -f <pod>
+kubectl describe pod <pod>
+kubectl apply -f manifest.yaml
+
+Docker
+docker build -t image:tag .
+docker run -d --name container image:tag
+docker logs -f container
+docker push registry/image:tag
+
+Terraform
+terraform plan
+terraform apply -auto-approve
+terraform destroy
+
+Git
+git add .
+git commit -m "message"
+git push origin main
+git pull
+
+Helm
+helm install release chart
+helm upgrade release chart
+helm list
+helm uninstall release
+
+Linux
+cd /path
+ls -la
+ps aux
+sudo systemctl restart service
+```
+
+Debugging Sequence
+```
+K8s Issue
+kubectl describe pod <pod>  Get details
+kubectl logs <pod>  Check logs
+kubectl get events  System events
+kubectl debug <pod> -it  Debug container
+
+Docker Issue
+docker logs <container>  Get logs
+docker exec -it <container> /bin/  Access container
+docker inspect <container>  Full details
+docker stats <container>  Resource usage
+
+Git Issue
+git status  Current state
+git log  Commit history
+git diff  Changes
+git reflog  Recovery
+```
+
