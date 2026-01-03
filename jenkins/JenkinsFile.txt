@@ -1,5 +1,7 @@
 pipeline {
-    agent any
+    agent any{
+        image 'mycustom-image:latest'
+    }
 
     environment {
         DOCKER_CREDENTIALS = credentials('docker-hub-creds')  // Docker Hub credentials
@@ -53,6 +55,7 @@ pipeline {
                         sh """
                         docker login -u ${DOCKER_CREDENTIALS_USR} -p ${DOCKER_CREDENTIALS_PSW}
                         docker push ${IMAGE_REPO}:${IMAGE_TAG}"
+                        """
                     }
                 }
             }

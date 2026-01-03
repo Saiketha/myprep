@@ -58,7 +58,8 @@ pipeline {
                     docker.withRegistry('', 'docker-hub-creds') {
                         sh """
                         docker login -u ${DOCKER_CREDENTIALS_USR} -p ${DOCKER_CREDENTIALS_PSW}
-                        docker push ${IMAGE_REPO}:${IMAGE_TAG}"
+                        docker push ${IMAGE_REPO}:${IMAGE_TAG}" 
+                        """
                     }
                 }
             }
