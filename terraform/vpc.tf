@@ -43,6 +43,7 @@ resource "aws_nat_gateway" "nat" {
   allocation_id = aws_eip.nat_eip.id
   subnet_id     = aws_subnet.public.id
   tags = { Name = "my-nat" }
+  map_public_ip_on_launch = false
   depends_on = [aws_internet_gateway.igw]
 }
 
@@ -135,6 +136,13 @@ resource "aws_instance" "bastion" {
   subnet_id              = aws_subnet.public.id
   key_name               = aws_key_pair.deployer.key_name
   vpc_security_group_ids = [aws_security_group.bastion_sg.id]
+  associate_public_ip_address = false
+  root_block_device {
+    volume_type           = "gp3"
+    volume_size           = 20
+    delete_on_termination = true
+  }
+  termination_protect = true
   tags = { Name = "bastion" }
 }
 
@@ -145,5 +153,12 @@ resource "aws_instance" "app" {
   subnet_id              = aws_subnet.private.id
   key_name               = aws_key_pair.deployer.key_name
   vpc_security_group_ids = [aws_security_group.app_sg.id]
+  associate_public_ip_address = false
+  root_block_device {
+    volume_type           = "gp3"
+    volume_size           = 20
+    delete_on_termination = true
+  }
+  termination_protect = true
   tags = { Name = "app-server" }
 }
