@@ -103,6 +103,7 @@ pipeline {
     }
     post {
         always {
+            sh 'docker sytem prune -f'
             cleanWs()
         }
     }
