@@ -103,6 +103,7 @@ spec:
         app: myapp
         tier: frontend
     spec:
+      nodename: ""  # specify node name if needed
       serviceAccountName: app-sa
       imagePullSecrets:
         - name: regcred
@@ -371,8 +372,8 @@ spec:
   selector:
     app: myapp
   ports:
-    - port: 80
-      targetPort: 8080
+    - port: 80 #service port
+      targetPort: 8080 #container port and this should match
       protocol: TCP
       name: http
   type: ClusterIP

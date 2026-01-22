@@ -100,6 +100,15 @@ pipeline {
                 }
             }
         }
+ #incase you dont use gitops you can use the below deploy stage
+        stage('Deploy with Helm') {
+            steps {
+                sh """
+                   helm upgrade your-release your-chart-repo/your-chart -f values/${env.BRANCH_NAME}.yaml -n your-namespace
+                   kubectl rollout status deployment/your-app-deployment -n your-namespace
+                """
+            }
+        }
     }
     post {
         always {
