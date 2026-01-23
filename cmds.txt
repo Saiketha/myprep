@@ -10,8 +10,9 @@ kubectl get nodes -o wide
 kubectl describe node <node-name>
 
 Get API versions
-kubectl api-versions
-kubectl api-resources
+kubectl api-versions # List with grouping by API version
+kubectl api-resources #lists all available K8s API resources in a cluster
+kubectl api-resources --namespaced=true # Show only namespaced resources
 
 Kubeconfig management
 kubectl config view
@@ -251,6 +252,26 @@ kubectl logs -f <pod-name> --since=5m  Last 5 minutes
 Stream logs from multiple pods
 kubectl logs -f -l app=<label> --all-containers=true
 ```
+---
+Basic resource explanation:
+kubectl explain pod
+kubectl explain <resource>
+Eg: deployment, service, ingress, configmap, secret, namespace, role, rolebinding. clusterrole, clusterrolebinding
+
+# Detailed field explanations
+kubectl explain deployment.spec.template.spec.containers
+kubectl explain pod.spec.containers.image
+kubectl explain pod.spec.volumes.persistentVolumeClaim
+kubectl explain service.spec.selector
+kubectl explain ingress.spec.rules
+kubectl explain role.rules
+kubectl explain rolebinding.roleRef
+kubectl explain rolebinding.subjects
+
+# Get recursive details (shows all nested fields)
+kubectl explain pod --recursive
+kubectl explain deployment --recursive
+kubectl explain service --recursive
 
 ---
 
@@ -1312,3 +1333,27 @@ git diff  Changes
 git reflog  Recovery
 ```
 
+-------------------
+
+kubectl logs cannot be used for all Kubernetes resources. It has specific limitations:
+
+## What `kubectl logs` CAN do:
+- Pods (primary use case) - retrieves logs from containers
+- Deployments (indirectly) - logs pods created by the deployment via `kubectl logs deployment/name`
+- StatefulSets, DaemonSets, Jobs, CronJobs (indirectly) - logs their pods
+- Multiple containers - use `-c` flag for specific containers
+
+## What `kubectl logs` CANNOT do:
+- ConfigMaps, Secrets - these are data objects, not workloads; they don't generate logs
+- Services, Ingress - these are network resources; they don't run containers
+- Namespaces - logical groupings, not workloads
+- Roles, RoleBindings - RBAC resources, not workloads
+- CNI, CSI, CRI - these are infrastructure interfaces/plugins, not Kubernetes objects you query directly
+
+## Key distinction:
+`kubectl logs` only works on resources that run containers. ConfigMaps, Secrets, Services, and Ingress don't execute code—they're configuration or routing mechanisms.
+
+For debugging other resources, use:
+- `kubectl describe` - for resource details, events, and status
+- `kubectl get` - for resource information
+- `kubectl apply --dry-run` - to validate configurations
