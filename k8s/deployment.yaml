@@ -13,7 +13,7 @@ metadata:
   name: app-sa
   namespace: app-ns
 imagePullSecrets:
-    name: app-secret # optional token secret reference (kube may create automatically)
+  - name: app-secret # optional token secret reference (kube may create automatically)
 ---
 # Secret (opaque) used as volume and env example
 apiVersion: v1
@@ -420,7 +420,8 @@ spec:
               app: mydb # allow from only mydb pod in same namespace
   egress:
     - to:
-        - podSelector: {}  # allow to any pod in same namespace
+        - podSelector: {}
+          namespaceSelector: {}  # allow to any pod in same namespace
 ---
 # ResourceQuota for the namespace
 apiVersion: v1
