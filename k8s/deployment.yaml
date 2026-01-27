@@ -476,18 +476,6 @@ data:
         loadbalance
     }
 ---
-# Example kube-proxy ConfigMap (if needed) - minimal example
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: kube-proxy
-  namespace: kube-system
-data:
-  config.conf: |
-    apiVersion: kubeproxy.config.k8s.io/v1
-    kind: KubeProxyConfiguration
-    mode: "iptables"
----
 # Example kubeconfig (sample, placeholders) - DO NOT USE AS IS
 apiVersion: v1
 kind: Config
@@ -507,17 +495,6 @@ contexts:
       user: app-user
       namespace: app-ns
 current-context: app-context
----
-# Optional example: TLS secret for Ingress (placeholder)
-apiVersion: v1
-kind: Secret
-metadata:
-  name: example-tls
-  namespace: app-ns
-type: kubernetes.io/tls
-data:
-  tls.crt: LS0tLS1CRUdJTiBDRV...  # base64 placeholder
-  tls.key: LS0tLS1CRUdJTiBSU0Eg...  # base64 placeholder
 ---
 # Additional optional monitoring Role for CoreDNS (example)
 apiVersion: rbac.authorization.k8s.io/v1
@@ -542,3 +519,69 @@ roleRef:
   kind: ClusterRole
   name: coredns-monitoring
   apiGroup: rbac.authorization.k8s.io
+---
+# StatefulSet example for MySQL with Persistent Storage
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: default
+spec:
+  serviceName: mysql          # Headless service name (required)
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        ports:
+        - containerPort: 3306
+          name: mysql
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: root-password
+        volumeMounts:
+        - name: mysql-storage
+          mountPath: /var/lib/mysql
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+  # Persistent volume for each pod
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: standard
+      resources:
+        requests:
+          storage: 10Gi
+---
+# Headless Service (required for StatefulSet)
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: default
+spec:
+  clusterIP: None  # Headless service
+  selector:
+    app: mysql
+  ports:
+  - port: 3306
+    targetPort: 3306
+    name: mysql
+  publishNotReadyAddresses: true
