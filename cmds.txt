@@ -1357,3 +1357,172 @@ For debugging other resources, use:
 - `kubectl describe` - for resource details, events, and status
 - `kubectl get` - for resource information
 - `kubectl apply --dry-run` - to validate configurations
+
+---------------------------
+Core Built-in Triggers
+--------
+cron: Schedules the pipeline to run at regular intervals using cron-like syntax.
+
+triggers { 
+    cron('H */4 * * 1-5') // Runs every 4 hours on weekdays
+}
+
+--------
+
+pollSCM: Checks the source code repository (e.g., Git) for changes at a defined interval and triggers a build only if changes are detected.
+
+triggers { 
+    pollSCM('H/10 * * * *') // Poll every 10 minutes
+}
+--------
+
+Changeset Conditional statements
+  In Jenkins Pipeline, a changeset is a feature used to execute specific stages only when files matching a defined pattern have been modified. 
+  It is a powerful tool for optimizing builds, especially in monorepos or multi-service projects, by ensuring you only build and deploy what has actually changed.
+---------------
+stage('Build Nginx') {
+    when {
+        // Only runs if files in the nginx folder changed
+        changeset "nginx/**" 
+    }
+    steps {
+        sh "make build-nginx"
+    }
+}  
+----------------  
+
+Ingress:
+
+NodePort + MetalLB (very common)
+
+Internet
+  ↓
+MetalLB (assigns External IP)
+  ↓
+Ingress Controller Service (NodePort)
+  ↓
+Ingress Controller Pod + ingress resource
+  ↓
+svc cluster ip
+  ↓
+pod
+  ↓
+container
+
+--------------------------
+
+Real-Life Production Mapping (Very Important)
+Frontend Pod
+    svc: ClusterIP + Ingress
+    Internet exposure: Yes
+Backend Pod 
+    svc: ClusterIP
+    Internet exposure:  No
+Database Pod 
+    svc: Headless
+    Internet exposure:  Never
+
+Internet
+   ↓
+Ingress (ALB / NGINX)
+   ↓
+Frontend Service (ClusterIP/NodePort)
+   ↓
+Frontend Pods
+   ↓
+Backend Service (ClusterIP)
+   ↓
+Backend Pods
+   ↓
+DB Service (ClusterIHeadless)
+   ↓
+DB Pods
+
+If I create a NodePort service, is my app automatically exposed to the internet?
+Answer:
+No. A NodePort only opens a port on the node. The service is accessible from the internet only if the node itself is reachable and the network/security rules allow it.
+
+Correct mental model
+Ingress Controller = Pod
+Service exposes the Ingress Controller
+Service type can be:
+  - LoadBalancer (cloud)
+  - NodePort (bare metal)
+  - ClusterIP (internal only)
+
+--------------------------------
+
+please give me well, long, descriptive and impressive answers, add questions to answers as well
+
+Core Kubernetes
+Full traffic flow: User → ALB → Ingress → Pod
+ User hits DNS (Route53) → ALB DNS
+ ALB Listener receives request (HTTP/HTTPS)
+ ALB forwards to Target Group
+   Targets = Node IP + NodePort (for NGINX ingress) or Pod IP (AWS Load Balancer Controller)
+ Ingress Controller Pod receives traffic
+ Ingress Controller matches:
+  Host
+  Path
+ Traffic forwarded to Kubernetes Service
+ kube-proxy routes traffic to one of the Pod IPs
+ Packet reaches the container
+ 
+What happens when a pod crashes?
+  Container exits
+  Kubelet detects failure
+  Based on restartPolicy:
+  Always → restart container
+  If repeated failures → CrashLoopBackOff
+  ReplicaSet ensures desired replicas exist 
+  
+----------
+  
+Terraform workflow (init → plan → apply)
+init
+  Downloads providers
+  Initializes backend
+  Prepares working directory
+
+plan
+  Compares desired state vs actual state
+  Shows execution plan
+
+apply
+  Executes the plan
+  Updates state file  
+
+Terraform state
+  A mapping between:
+  Terraform resources
+  Real cloud resources
+  Stored in terraform.tfstate
+  Enables Terraform to know what it manages  
+
+----------
+
+1.if i deployed the image manually in k8s locally does it has secrets in the image ?
+   Secrets stored in AWS Secrets Manager or Kubernetes Secrets are injected into containers at runtime via volumes or environment variables. They are not baked into the image unless explicitly added during image build(dockerfile). Kubernetes Secrets are base64-encoded, not encrypted, so security relies on RBAC, encryption at rest, and proper pod-level isolation.
+   Prefer volume-mounted secrets over env vars (env vars can leak via /proc, logs, crashes)
+   Rotate secrets without rebuilding images and use short-lived credentials (IRSA, STS)
+   
+CMD vs Entrypoint
+Both ENTRYPOINT and CMD are used to define what runs when the container starts.
+Entrypoint
+  Defines the main executable
+  Rarely changes
+  Container is “built around” this command
+
+CMD
+  Defines default arguments to the ENTRYPOINT
+  Easily overridden at runtime   
+
+--------------------------------
+
+Multibranch Pipeline
+What it is: Automatically creates separate pipelines for each branch. Detects Jenkinsfile in each branch.
+Best for: Projects with multiple branches, pull requests, feature branches.
+
+Organization Folder
+What it is: Automatically scans GitHub/GitLab organization and creates multibranch pipelines for each repository.
+Best for: Monorepos or multiple repositories with consistent structure.
