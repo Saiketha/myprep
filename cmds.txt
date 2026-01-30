@@ -1526,3 +1526,198 @@ Best for: Projects with multiple branches, pull requests, feature branches.
 Organization Folder
 What it is: Automatically scans GitHub/GitLab organization and creates multibranch pipelines for each repository.
 Best for: Monorepos or multiple repositories with consistent structure.
+
+---------------------
+
+switch users 
+  depending on whether you want a full login environment or just to run a single command. 
+su (Substitute User): 
+    Switches your current terminal session to another user.
+su - [username] – Recommended. The hyphen (-) creates a "login shell," loading the target user’s environment, PATH, and home directory.
+su [username] – Switches users but keeps your current environment and directory.
+su - – Switches to the root user (super-user).
+Password: Requires the password of the target user.
+
+sudo (SuperUser Do): 
+   Primarily used for executing a single command with another user's privileges (usually root).
+sudo -u [username] [command] – Runs a specific command as the named user.
+sudo -i – Provides an interactive login shell for the root user.
+sudo su - [username] – Uses sudo privileges to switch to another user without needing their password (requires your own password).
+Password: Requires the password of the current user.
+Returning to your original user: Type exit or press Ctrl+D to end the session and return to your previous user.
+
+------------------
+
+A service account provides an identity to pods so they can securely access Kubernetes resources or cloud services using least privilege.
+
+Why do pods need a Service Account?
+
+Because pods sometimes need to:
+  Talk to Kubernetes
+  Read secrets
+  List pods
+  Call AWS services (in EKS)
+Kubernetes will NOT trust a pod without an identity
+
+----------------------------------------------------
+
+1) Self-managed Kubernetes (bare-metal / on-prem)
+Typical production setup
+  Ingress Controller (nginx/traefik) runs as Pods in cluster.
+  External traffic must be provided by you (no cloud LB).
+  Common options to expose Ingress Controller:
+     Service type: NodePort + external hardware LB or direct NodeIP:NodePort
+     Service type: LoadBalancer + MetalLB (provides external IPs)
+  Application services (backends) are ClusterIP (internal-only).
+
+Flow (NodePort + external LB)
+  User
+   ↓ (DNS -> external LB IP)
+  External Load Balancer (F5/HAProxy)
+   ↓ forwards to
+  Any Node IP : NodePort (e.g. 30080)
+   ↓ kube-proxy
+  Ingress Controller Pod (nginx)
+   ↓ (Ingress rules)
+  ClusterIP Service (backend-svc)
+   ↓
+  Backend Pod(s)
+
+Flow (MetalLB LoadBalancer)
+  User
+   ↓
+  MetalLB assigned External IP 1.2.3.4 (Service type: LoadBalancer on controller)
+   ↓
+  Ingress Controller Pod(s)
+   ↓ (Ingress rules)
+  ClusterIP Service (backend-svc)
+   ↓
+  Backend Pod(s)
+
+Which Service types (self-managed)
+Ingress Controller: NodePort (common) or LoadBalancer (if MetalLB is installed)
+Application: ClusterIP (recommended). Stateful apps may use Headless/StatefulSet + PVC.
+
+Example (minimal) YAML snippets
+
+Ingress controller svc (NodePort):
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: ingress-nginx
+  namespace: ingress-nginx
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+  ports:
+  - port: 80
+    nodePort: 30080
+---
+
+App service (ClusterIP):
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: backend-svc
+spec:
+  type: ClusterIP
+  selector:
+    app: backend
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+
+Production notes & best practices (self-managed)
+  Prefer ClusterIP for apps; keep Ingress as single controlled entry point.
+  Use an external LB (F5/HAProxy) or MetalLB for cloud-like behavior.
+  TLS termination at external LB or Ingress Controller (cert-manager).
+  Use NetworkPolicy to restrict pod-to-pod traffic.
+  Use health checks on external LB to target nodes or pods (depending on setup).
+
+Quick checks
+kubectl get svc -n ingress-nginx
+kubectl get ingress -A
+# check NodePort access:
+curl http://<node-ip>:30080/health
+
+2) AWS EKS (cloud-managed) — two common production patterns
+  Two widely used production patterns in EKS:
+    AWS Load Balancer Controller (ALB Ingress) — ALB created dynamically from Ingress/Gateway.
+    NGINX/Traefik Ingress + Service type=LoadBalancer (uses cloud LB, often NLB) — controller exposed via LB.
+
+Pattern A — AWS Load Balancer Controller (ALB) — recommended for HTTP workloads
+Flow
+  User
+   ↓ (DNS -> ALB DNS)
+  AWS ALB (created by AWS Load Balancer Controller)
+   ↓ (ALB listener rules)
+  Ingress Controller (ALB targets pods or nodes depending on target type)
+   ↓ (Ingress rules)
+  ClusterIP Service (backend-svc)
+   ↓
+  Backend Pod(s)
+
+Key points
+  Ingress resource (or Gateway in Gateway API) is translated by the AWS Load Balancer Controller into an ALB and Target Groups.
+  ALB commonly targets pod IPs (target-type=ip) in EKS (direct pod targets) or node instances (target-type=instance) — most recent setups use pod targets.
+  TLS is typically terminated at ALB (ACM certs).
+
+Which Service types (ALB pattern)
+  Ingress Controller: You don’t create a LoadBalancer Service for the ALB controller — the AWS controller creates ALB resources on AWS based on Ingress. The controller itself runs as ClusterIP/Deployment.
+  Application: ClusterIP (best practice).
+
+Pattern B — NGINX/Traefik Ingress Controller with LoadBalancer Service (NLB)
+Flow
+  User
+   ↓ (DNS -> NLB IP/DNS)
+  Kubernetes Service (type=LoadBalancer) for ingress-nginx(cloud controller provisions NLB)
+   ↓
+  Ingress Controller Pod(s)
+   ↓ (Ingress rules)
+  ClusterIP Service (backend-svc)
+   ↓
+  Backend Pod(s)
+
+Key points
+  Here you create Service type=LoadBalancer for the ingress controller; cloud-controller provisions an NLB (or ELB) and assigns External IP/DNS.
+  This pattern is useful when you want a traditional ingress controller (nginx) but want cloud LB integration.
+
+Which Service types (Nginx+LoadBalancer)
+  Ingress Controller: LoadBalancer (AWS provisions NLB/ELB)
+  Application: ClusterIP
+
+AWS production notes & best practices
+  Prefer ALB Ingress Controller for L7 features, path/host routing, and AWS integrations (WAF, ACM).
+  Keep apps as ClusterIP and let Ingress/ALB handle external access.
+  Use security groups on ALB to restrict traffic; use AWS WAF for filtering.
+  Use IRSA (IAM roles for service accounts) for the controller to manage AWS resources securely.
+
+Health checks: ALB health check → target group → pod endpoint (readiness probe must be accurate).
+
+Quick checks on EKS
+kubectl get ingress -A          # ALB-created ingress will show ADDRESS (alb-dns)
+kubectl get svc -n ingress-nginx # if using LoadBalancer svc you'll see EXTERNAL-IP
+kubectl describe ingress <name>
+
+Summary table:
+Environment	                Ingress Controller svc	                             App svc	External LB created by	                Recommended pattern
+Self-managed bare metal  	NodePort or LoadBalancer (MetalLB)                   ClusterIP	External LB (F5/HAProxy) or MetalLB	    NodePort + external LB or MetalLB
+AWS EKS (ALB controller)	Controller runs as pods; ALB created from Ingress	 ClusterIP	AWS ALB created by AWS LB Controller    ALB Ingress Controller (L7)
+AWS EKS (NGINX + LB svc)	LoadBalancer (NLB)                                	 ClusterIP	Cloud LB (NLB/ELB) provisioned by k8s	NGINX + LoadBalancer svc (if needed)
+
+Security & operational checklist (production)
+  TLS: terminate at ALB or Ingress (use ACM or cert-manager).
+  Health/readiness: make readiness endpoints simple and reflect true readiness.
+  NetworkPolicy: allow only ingress controller → backend svc, block others.
+  Audit & IAM: controller should run with minimal permissions (IRSA on EKS).
+  WAF / rate limiting: on ALB (AWS WAF) or Ingress (NGINX rate-limit).
+  Monitoring: ALB metrics + kube-proxy + pod metrics; check readiness/endpoint counts.
+
+Example quick answers you can say in interview
+  “In production I keep backend services ClusterIP and expose only through a single well-managed Ingress entrypoint. On EKS I prefer the AWS Load Balancer Controller (ALB) so ALBs are created automatically from Ingress, while on bare metal I use an external LB pointing to NodePort or MetalLB assigning external IPs.”
+  “Ingress Controller pods usually aren’t exposed directly; either the cloud integration creates an ALB (ALB controller) or you expose the controller with a Service (LoadBalancer or NodePort) and let an external LB forward traffic to it.”
+
